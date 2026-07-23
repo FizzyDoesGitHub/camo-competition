@@ -146,8 +146,8 @@
   <iframe id="peaFrame"></iframe>
 
   <script>
-    // Direct raw CDN link to your PSD file in GitHub
-    const PSD_URL = "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/IS-7%20Template.psd";
+    // Direct raw CDN link with cache buster
+    const PSD_URL = "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/IS-7%20Template.psd?v=" + Date.now();
     const TARGET_LAYER_NAME = "Edit me";
 
     const iframe = document.getElementById("peaFrame");
@@ -180,58 +180,61 @@
       statusEl.textContent = "Processing your design into the template...";
       generateBtn.disabled = true;
 
-      // Create a temporary Blob URL for the uploaded user image
-      const userFile = fileInput.files[0];
-      const blobUrl = URL.createObjectURL(userFile);
+      // Read file as Data URL (Base64) to bypass cross-origin blob security restrictions
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const dataUrl = e.target.result;
 
-      // Photopea ExtendScript using Blob URL stream
-      const script = `
-        (function() {
-          var mainDoc = app.activeDocument;
-          var targetLayer = null;
+        const script = `
+          (function() {
+            var mainDoc = app.activeDocument;
+            var targetLayer = null;
 
-          // 1. Locate 'Edit me' layer
-          for (var i = 0; i < mainDoc.layers.length; i++) {
-            if (mainDoc.layers[i].name === "${TARGET_LAYER_NAME}") {
-              targetLayer = mainDoc.layers[i];
-              break;
+            // 1. Locate 'Edit me' layer
+            for (var i = 0; i < mainDoc.layers.length; i++) {
+              if (mainDoc.layers[i].name === "${TARGET_LAYER_NAME}") {
+                targetLayer = mainDoc.layers[i];
+                break;
+              }
             }
-          }
-          if (!targetLayer) {
-            try { targetLayer = mainDoc.artLayers.getByName("${TARGET_LAYER_NAME}"); } catch(err) {}
-          }
+            if (!targetLayer) {
+              try { targetLayer = mainDoc.artLayers.getByName("${TARGET_LAYER_NAME}"); } catch(err) {}
+            }
 
-          if (!targetLayer) {
-            alert("Layer '${TARGET_LAYER_NAME}' not found in template.");
-            return;
-          }
+            if (!targetLayer) {
+              alert("Layer '${TARGET_LAYER_NAME}' not found in template.");
+              return;
+            }
 
-          mainDoc.activeLayer = targetLayer;
+            mainDoc.activeLayer = targetLayer;
 
-          // 2. Open Smart Object sub-document
-          executeAction(stringIDToTypeID("placedLayerEditContents"));
-          var smartObjDoc = app.activeDocument;
+            // 2. Open Smart Object sub-document
+            executeAction(stringIDToTypeID("placedLayerEditContents"));
+            var smartObjDoc = app.activeDocument;
 
-          // 3. Open user image directly via Blob URL
-          var userImgDoc = app.open("${blobUrl}", null, true);
-          userImgDoc.selection.selectAll();
-          userImgDoc.activeLayer.copy();
-          userImgDoc.close();
+            // 3. Open user image via Data URI
+            var userImgDoc = app.open("${dataUrl}", null, true);
+            userImgDoc.selection.selectAll();
+            userImgDoc.activeLayer.copy();
+            userImgDoc.close();
 
-          // 4. Paste into Smart Object canvas and save
-          app.activeDocument = smartObjDoc;
-          smartObjDoc.selection.selectAll();
-          smartObjDoc.paste();
-          smartObjDoc.save();
-          smartObjDoc.close();
+            // 4. Paste into Smart Object canvas and save
+            app.activeDocument = smartObjDoc;
+            smartObjDoc.selection.selectAll();
+            smartObjDoc.paste();
+            smartObjDoc.save();
+            smartObjDoc.close();
 
-          // 5. Save output PNG back to page
-          app.activeDocument = mainDoc;
-          mainDoc.saveToOE("png");
-        })();
-      `;
+            // 5. Save output PNG back to page
+            app.activeDocument = mainDoc;
+            mainDoc.saveToOE("png");
+          })();
+        `;
 
-      iframe.contentWindow.postMessage(script, "*");
+        iframe.contentWindow.postMessage(script, "*");
+      };
+
+      reader.readAsDataURL(fileInput.files[0]);
     }
 
     // Message listener for Photopea callbacks
