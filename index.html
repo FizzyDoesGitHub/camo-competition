@@ -146,8 +146,7 @@
   <iframe id="peaFrame"></iframe>
 
   <script>
-    // Direct raw CDN link with cache buster
-    const PSD_URL = "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/IS-7%20Template.psd?v=" + Date.now();
+    const PSD_URL = "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/IS-7%20Template.psd";
     const TARGET_LAYER_NAME = "Edit me";
 
     const iframe = document.getElementById("peaFrame");
@@ -158,8 +157,9 @@
     const resultImage = document.getElementById("resultImage");
 
     let isEngineReady = false;
+    let currentStep = "idle";
+    let pendingBuffer = null;
 
-    // Load Photopea engine with template
     iframe.src = `https://www.photopea.com/#${encodeURIComponent(JSON.stringify({ files: [PSD_URL] }))}`;
 
     function updateFileName() {
@@ -180,17 +180,17 @@
       statusEl.textContent = "Processing your design into the template...";
       generateBtn.disabled = true;
 
-      // Read file as Data URL (Base64) to bypass cross-origin blob security restrictions
       const reader = new FileReader();
       reader.onload = function(e) {
-        const dataUrl = e.target.result;
+        pendingBuffer = e.target.result;
+        currentStep = "opening_smart_object";
 
-        const script = `
+        // Step 1: Open the Smart Object in Photopea first
+        const openSoScript = `
           (function() {
             var mainDoc = app.activeDocument;
             var targetLayer = null;
 
-            // 1. Locate 'Edit me' layer
             for (var i = 0; i < mainDoc.layers.length; i++) {
               if (mainDoc.layers[i].name === "${TARGET_LAYER_NAME}") {
                 targetLayer = mainDoc.layers[i];
@@ -201,43 +201,21 @@
               try { targetLayer = mainDoc.artLayers.getByName("${TARGET_LAYER_NAME}"); } catch(err) {}
             }
 
-            if (!targetLayer) {
-              alert("Layer '${TARGET_LAYER_NAME}' not found in template.");
-              return;
+            if (targetLayer) {
+              mainDoc.activeLayer = targetLayer;
+              executeAction(stringIDToTypeID("placedLayerEditContents"));
+              app.echoToOE("so_opened");
+            } else {
+              alert("Layer '${TARGET_LAYER_NAME}' not found.");
             }
-
-            mainDoc.activeLayer = targetLayer;
-
-            // 2. Open Smart Object sub-document
-            executeAction(stringIDToTypeID("placedLayerEditContents"));
-            var smartObjDoc = app.activeDocument;
-
-            // 3. Open user image via Data URI
-            var userImgDoc = app.open("${dataUrl}", null, true);
-            userImgDoc.selection.selectAll();
-            userImgDoc.activeLayer.copy();
-            userImgDoc.close();
-
-            // 4. Paste into Smart Object canvas and save
-            app.activeDocument = smartObjDoc;
-            smartObjDoc.selection.selectAll();
-            smartObjDoc.paste();
-            smartObjDoc.save();
-            smartObjDoc.close();
-
-            // 5. Save output PNG back to page
-            app.activeDocument = mainDoc;
-            mainDoc.saveToOE("png");
           })();
         `;
-
-        iframe.contentWindow.postMessage(script, "*");
+        iframe.contentWindow.postMessage(openSoScript, "*");
       };
 
-      reader.readAsDataURL(fileInput.files[0]);
+      reader.readAsArrayBuffer(fileInput.files[0]);
     }
 
-    // Message listener for Photopea callbacks
     window.addEventListener("message", function(e) {
       if (e.data === "done") {
         if (!isEngineReady) {
@@ -246,8 +224,35 @@
           generateBtn.textContent = "Generate Competition Entry";
           generateBtn.disabled = false;
         }
-      } else if (e.data instanceof ArrayBuffer) {
-        // Output image buffer returned from Photopea
+      } 
+      else if (e.data === "so_opened" && currentStep === "opening_smart_object") {
+        currentStep = "sending_image";
+        // Step 2: Now that Smart Object is open, post the raw binary ArrayBuffer
+        iframe.contentWindow.postMessage(pendingBuffer, "*");
+      } 
+      else if (currentStep === "sending_image" && e.data === "done") {
+        currentStep = "rendering";
+        // Step 3: Photopea imported the binary image. Copy it, paste into Smart Object, save, and export PNG
+        const completeScript = `
+          (function() {
+            var userDoc = app.activeDocument;
+            userDoc.selection.selectAll();
+            userDoc.activeLayer.copy();
+            userDoc.close();
+
+            var smartObjDoc = app.activeDocument;
+            smartObjDoc.selection.selectAll();
+            smartObjDoc.paste();
+            smartObjDoc.save();
+            smartObjDoc.close();
+
+            app.documents[0].saveToOE("png");
+          })();
+        `;
+        iframe.contentWindow.postMessage(completeScript, "*");
+      } 
+      else if (e.data instanceof ArrayBuffer) {
+        // Step 4: Finished PNG returned from saveToOE("png")
         const blob = new Blob([e.data], { type: "image/png" });
         const imageUrl = URL.createObjectURL(blob);
         
@@ -259,6 +264,7 @@
 
         statusEl.textContent = "Design rendered successfully!";
         generateBtn.disabled = false;
+        currentStep = "idle";
       }
     });
   </script>
