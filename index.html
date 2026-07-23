@@ -145,7 +145,7 @@
 
   <iframe id="peaFrame"></iframe>
 
-  <script>
+ <script>
     const PSD_URL = "https://www.dropbox.com/scl/fi/65zu5db8qyttr03bziirt/IS-7-Template.psd?rlkey=xvwugojb5dk567qvpk80fpf2z&raw=1";
     const TARGET_LAYER_NAME = "Edit me";
 
@@ -179,59 +179,58 @@
       statusEl.textContent = "Processing your design into the template...";
       generateBtn.disabled = true;
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const dataUrl = e.target.result;
+      // Create a temporary Blob URL for the uploaded user image
+      const userFile = fileInput.files[0];
+      const blobUrl = URL.createObjectURL(userFile);
 
-        const script = `
-          (function() {
-            var doc = app.activeDocument;
-            var targetLayer = null;
+      // Photopea ExtendScript using Blob URL stream
+      const script = `
+        (function() {
+          var mainDoc = app.activeDocument;
+          var targetLayer = null;
 
-            for (var i = 0; i < doc.layers.length; i++) {
-              if (doc.layers[i].name === "${TARGET_LAYER_NAME}") {
-                targetLayer = doc.layers[i];
-                break;
-              }
+          // 1. Locate 'Edit me' layer
+          for (var i = 0; i < mainDoc.layers.length; i++) {
+            if (mainDoc.layers[i].name === "${TARGET_LAYER_NAME}") {
+              targetLayer = mainDoc.layers[i];
+              break;
             }
-            if (!targetLayer) {
-              try { targetLayer = doc.artLayers.getByName("${TARGET_LAYER_NAME}"); } catch(err) {}
-            }
+          }
+          if (!targetLayer) {
+            try { targetLayer = mainDoc.artLayers.getByName("${TARGET_LAYER_NAME}"); } catch(err) {}
+          }
 
-            if (!targetLayer) {
-              alert("Layer '${TARGET_LAYER_NAME}' not found in template.");
-              return;
-            }
+          if (!targetLayer) {
+            alert("Layer '${TARGET_LAYER_NAME}' not found in template.");
+            return;
+          }
 
-            doc.activeLayer = targetLayer;
+          mainDoc.activeLayer = targetLayer;
 
-            // Open smart object
-            executeAction(stringIDToTypeID("placedLayerEditContents"));
-            var smartObjDoc = app.activeDocument;
+          // 2. Open Smart Object sub-document
+          executeAction(stringIDToTypeID("placedLayerEditContents"));
+          var smartObjDoc = app.activeDocument;
 
-            // Open user uploaded design
-            var userImgDoc = app.open("${dataUrl}", null, true);
-            userImgDoc.selection.selectAll();
-            userImgDoc.activeLayer.copy();
-            userImgDoc.close();
+          // 3. Open user image directly via Blob URL
+          var userImgDoc = app.open("${blobUrl}", null, true);
+          userImgDoc.selection.selectAll();
+          userImgDoc.activeLayer.copy();
+          userImgDoc.close();
 
-            // Paste inside Smart Object and save
-            app.activeDocument = smartObjDoc;
-            smartObjDoc.selection.selectAll();
-            smartObjDoc.paste();
-            smartObjDoc.save();
-            smartObjDoc.close();
+          // 4. Paste into Smart Object canvas and save
+          app.activeDocument = smartObjDoc;
+          smartObjDoc.selection.selectAll();
+          smartObjDoc.paste();
+          smartObjDoc.save();
+          smartObjDoc.close();
 
-            // Export finished render back to web page
-            app.activeDocument = doc;
-            doc.saveToOE("png");
-          })();
-        `;
+          // 5. Save output PNG back to page
+          app.activeDocument = mainDoc;
+          mainDoc.saveToOE("png");
+        })();
+      `;
 
-        iframe.contentWindow.postMessage(script, "*");
-      };
-
-      reader.readAsDataURL(fileInput.files[0]);
+      iframe.contentWindow.postMessage(script, "*");
     }
 
     // Message listener for Photopea callbacks
