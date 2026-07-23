@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IS-7 Competition Design Tool</title>
+  <title>Competition Design Tool</title>
   <style>
     * {
       box-sizing: border-box;
@@ -13,49 +13,111 @@
       background-color: #0f172a;
       color: #f8fafc;
       margin: 0;
-      padding: 16px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
     }
-    .header {
+    .container {
+      width: 100%;
+      max-width: 1400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    /* Template Selector Screen */
+    .selector-card {
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+      max-width: 600px;
+      width: 100%;
       text-align: center;
-      margin-bottom: 12px;
+      border: 1px solid #334155;
+      margin-top: 40px;
     }
     h1 {
-      margin: 0 0 6px 0;
-      font-size: 1.5rem;
+      margin-top: 0;
+      font-size: 1.6rem;
       color: #38bdf8;
     }
     p {
-      margin: 0;
       color: #94a3b8;
       font-size: 0.95rem;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .template-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .template-btn {
+      padding: 16px;
+      background: #334155;
+      color: #f8fafc;
+      border: 2px solid #475569;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .template-btn:hover {
+      background: #0284c7;
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }
+
+    /* Editor View (Hidden initially) */
+    .editor-view {
+      display: none;
+      width: 100%;
+      flex-direction: column;
+      align-items: center;
+    }
+    .header-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .back-btn {
+      padding: 8px 16px;
+      background: #334155;
+      color: #e2e8f0;
+      border: 1px solid #64748b;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .back-btn:hover {
+      background: #475569;
     }
     .instructions {
       background: #1e293b;
       border: 1px solid #334155;
-      padding: 12px 20px;
+      padding: 10px 16px;
       border-radius: 8px;
-      margin-top: 10px;
       font-size: 0.85rem;
       color: #e2e8f0;
       display: flex;
       gap: 16px;
-      justify-content: center;
       flex-wrap: wrap;
-    }
-    .instructions span {
-      display: flex;
-      align-items: center;
-      gap: 6px;
     }
     .editor-wrapper {
       width: 100%;
-      max-width: 1400px;
       height: 82vh;
-      margin-top: 12px;
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid #334155;
@@ -71,38 +133,92 @@
 </head>
 <body>
 
-  <div class="header">
-    <h1>IS-7 Competition Design Tool</h1>
-    <p>Customize your camouflage design directly in the editor below!</p>
+  <div class="container">
     
-    <div class="instructions">
-      <span>1️⃣ Double-click the <strong>Edit me</strong> layer on the right</span>
-      <span>2️⃣ Drag & drop your image into the canvas</span>
-      <span>3️⃣ Press <strong>Ctrl+S</strong> (or File > Save) to apply it</span>
-      <span>4️⃣ Go to <strong>File > Export as > PNG</strong> to save your entry</span>
+    <!-- 1. SELECTOR SCREEN -->
+    <div id="selectorScreen" class="selector-card">
+      <h1>Select Template</h1>
+      <p>Choose a vehicle template below to launch the competition editor:</p>
+      
+      <div id="templateGrid" class="template-grid">
+        <!-- Template buttons generated automatically by JavaScript -->
+      </div>
     </div>
-  </div>
 
-  <div class="editor-wrapper">
-    <iframe id="photopeaIframe" allow="clipboard-read; clipboard-write"></iframe>
+    <!-- 2. EDITOR SCREEN -->
+    <div id="editorScreen" class="editor-view">
+      <div class="header-bar">
+        <button class="back-btn" onclick="goBack()">← Choose Different Template</button>
+        
+        <div class="instructions">
+          <span>1️⃣ Double-click <strong>Edit me</strong> layer</span>
+          <span>2️⃣ Drop your image in</span>
+          <span>3️⃣ Press <strong>Ctrl+S</strong> to apply</span>
+          <span>4️⃣ <strong>File > Export as > PNG</strong> to save</span>
+        </div>
+      </div>
+
+      <div class="editor-wrapper">
+        <iframe id="photopeaIframe" allow="clipboard-read; clipboard-write"></iframe>
+      </div>
+    </div>
+
   </div>
 
   <script>
-    // Direct raw link to your PSD file on GitHub
-    const PSD_URL = "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/IS-7%20Template.psd";
+    // =========================================================================
+    // TEMPLATE LIST (Add your future PSD files here!)
+    // =========================================================================
+    const TEMPLATES = [
+      {
+        name: "IS-7 Template",
+        fileUrl: "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/IS-7%20Template.psd"
+      }
+      ,{
+        name: "E-100 Template",
+        fileUrl: "https://raw.githubusercontent.com/FizzyDoesGitHub/camo-competition/main/E-100%20Template.psd"
+      }
+    ];
 
+    const selectorScreen = document.getElementById("selectorScreen");
+    const editorScreen = document.getElementById("editorScreen");
+    const templateGrid = document.getElementById("templateGrid");
     const iframe = document.getElementById("photopeaIframe");
 
-    // Configure Photopea to load the PSD directly on launch
-    const photopeaConfig = {
-      files: [PSD_URL],
-      environment: {
-        theme: 2 // Dark theme
-      }
-    };
+    // Populate template choices on load
+    function initSelector() {
+      templateGrid.innerHTML = "";
+      TEMPLATES.forEach((tpl) => {
+        const btn = document.createElement("button");
+        btn.className = "template-btn";
+        btn.innerHTML = `<span>🛡️ ${tpl.name}</span> <span>→</span>`;
+        btn.onclick = () => loadTemplate(tpl.fileUrl);
+        templateGrid.appendChild(btn);
+      });
+    }
 
-    // Load Photopea cleanly into the visible iframe
-    iframe.src = `https://www.photopea.com/#${encodeURIComponent(JSON.stringify(photopeaConfig))}`;
+    // Launch Photopea with selected PSD URL
+    function loadTemplate(psdUrl) {
+      selectorScreen.style.display = "none";
+      editorScreen.style.display = "flex";
+
+      const photopeaConfig = {
+        files: [psdUrl],
+        environment: { theme: 2 }
+      };
+
+      iframe.src = `https://www.photopea.com/#${encodeURIComponent(JSON.stringify(photopeaConfig))}`;
+    }
+
+    // Return to template picker
+    function goBack() {
+      iframe.src = "about:blank"; // Unload Photopea
+      editorScreen.style.display = "none";
+      selectorScreen.style.display = "block";
+    }
+
+    // Initialize
+    initSelector();
   </script>
 
 </body>
