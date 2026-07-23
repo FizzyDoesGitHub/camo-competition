@@ -158,7 +158,7 @@
 
     let isEngineReady = false;
 
-    // Initialize Photopea
+    // Load Photopea engine
     iframe.src = `https://www.photopea.com/#${encodeURIComponent(JSON.stringify({ files: [PSD_URL] }))}`;
 
     function updateFileName() {
@@ -183,48 +183,62 @@
       reader.onload = function(e) {
         const dataUrl = e.target.result;
 
-        // Clean, direct ExtendScript execution
         const script = `
           (function() {
             var mainDoc = app.activeDocument;
-            var targetLayer = null;
-
-            // Find target layer 'Edit me'
-            for (var i = 0; i < mainDoc.layers.length; i++) {
-              if (mainDoc.layers[i].name === "${TARGET_LAYER_NAME}") {
-                targetLayer = mainDoc.layers[i];
-                break;
+            
+            // Recursive helper to find layer inside nested groups/folders
+            function findLayerRecursive(parent, targetName) {
+              for (var i = 0; i < parent.layers.length; i++) {
+                var l = parent.layers[i];
+                // Check layer name (ignoring surrounding spaces)
+                if (l.name.replace(/^\\s+|\\s+$/g, '') === targetName) {
+                  return l;
+                }
+                // If this layer is a folder/group, search inside it
+                if (l.layers && l.layers.length > 0) {
+                  var found = findLayerRecursive(l, targetName);
+                  if (found) return found;
+                }
               }
-            }
-            if (!targetLayer) {
-              try { targetLayer = mainDoc.artLayers.getByName("${TARGET_LAYER_NAME}"); } catch(err) {}
+              return null;
             }
 
+            var targetLayer = findLayerRecursive(mainDoc, "${TARGET_LAYER_NAME}");
+
             if (!targetLayer) {
-              alert("Layer '${TARGET_LAYER_NAME}' not found.");
+              alert("Could not find layer '${TARGET_LAYER_NAME}'. Please check the PSD layer names.");
               return;
             }
 
+            // Make sure layer is visible and active
+            targetLayer.visible = true;
             mainDoc.activeLayer = targetLayer;
 
-            // Open Smart Object contents
-            executeAction(stringIDToTypeID("placedLayerEditContents"));
+            // Open Smart Object contents safely
+            try {
+              executeAction(stringIDToTypeID("placedLayerEditContents"));
+            } catch(err) {
+              alert("Layer '${TARGET_LAYER_NAME}' was found, but it is not a Smart Object.");
+              return;
+            }
+
             var smartObjDoc = app.activeDocument;
 
-            // Open uploaded user image
+            // Open user's uploaded image
             var userImgDoc = app.open("${dataUrl}", null, true);
             userImgDoc.selection.selectAll();
             userImgDoc.activeLayer.copy();
             userImgDoc.close();
 
-            // Paste into Smart Object canvas and save
+            // Paste inside Smart Object and save
             app.activeDocument = smartObjDoc;
             smartObjDoc.selection.selectAll();
             smartObjDoc.paste();
             smartObjDoc.save();
             smartObjDoc.close();
 
-            // Export final render back to Outer Environment
+            // Export final render back to web page
             app.activeDocument = mainDoc;
             mainDoc.saveToOE("png");
           })();
@@ -246,7 +260,7 @@
           generateBtn.disabled = false;
         }
       } else if (e.data instanceof ArrayBuffer) {
-        // Output PNG binary array buffer returned from Photopea
+        // Recieved PNG binary render back from Photopea
         const blob = new Blob([e.data], { type: "image/png" });
         const imageUrl = URL.createObjectURL(blob);
         
